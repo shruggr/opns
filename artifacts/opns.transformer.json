@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "errors": [],
+  "scryptfile": "opns.scrypt",
+  "sourceMapFile": "opns.scrypt.map",
+  "ctxMethods": [
+    "mint"
+  ]
+}

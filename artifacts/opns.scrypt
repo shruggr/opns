@@ -1,0 +1,56 @@
+
+contract OpNS {
+  const bytes tld;
+  const int difficulty;
+  @state bytes id;
+  @state int claimed;
+  @state bytes domain;
+  @state bytes pow;
+  constructor(bytes tld, int difficulty) {
+    this.tld = tld;
+    this.difficulty = difficulty;
+    this.id = b'';
+    this.claimed = 0;
+    this.domain = b'';
+    this.pow = b'';
+  }
+  public function mint(int char, bytes nonce, bytes lock, bytes trailingOutputs, SigHashPreimage __scrypt_ts_txPreimage) {
+    require(Tx.checkPreimageSigHashType(__scrypt_ts_txPreimage, SigHashType(b'c1')));
+    if(len(this.id) == 0) {
+        this.id = SigHash.outpoint(__scrypt_ts_txPreimage)[0:32] + num2bin(unpack(SigHash.outpoint(__scrypt_ts_txPreimage)[32:]), 4);
+      }
+    this.pow = this.validatePOW(char, nonce);
+    this.claimed = this.validateChar(char);
+    bytes selfOutput = this.buildStateOutput(1);
+    this.claimed = 0;
+    this.domain = this.domain + pack(char);
+    bytes spawnOutput = this.buildStateOutput(1);
+    bytes tokenOutput = Utils.buildOutput(this.buildInscription(lock), 1);
+    bytes outputs = selfOutput + spawnOutput + tokenOutput + trailingOutputs;
+    require(hash256(outputs) == SigHash.hashOutputs(__scrypt_ts_txPreimage));
+  }
+  function validatePOW(int char, bytes nonce) : bytes {
+    Sha256 pow = hash256(this.pow + pack(char) + nonce);
+    int test = (Utils.fromLEUnsigned(pow) >> 256 - this.difficulty);
+    require(test == 0);
+    return pow;
+  }
+  function validateChar(int char) : int {
+    bool valid = char == 45 || (char >= 48 && char < 58) || (char >= 97 && char < 123);
+    require(valid);
+    int mask = (1 << char);
+    require((mask & this.claimed) == 0);
+    return this.claimed + mask;
+  }
+  function buildInscription(bytes lock) : bytes {
+    bytes domain = this.domain;
+    if(len(this.tld) > 0) {
+        domain = this.domain + "." + this.tld;
+      }
+    return (lock + b'0063036f726451116170706c69636174696f6e2f6f702d6e7300' + pack(len(domain)) + domain + OpCode.OP_ENDIF + OpCode.OP_RETURN + pack(33) + "1opNSUJVbBc2Vf8LFNSoywGGK4jMcGVrC" + pack(36) + this.id);
+  }
+    function buildStateOutput(int amount): bytes {
+      bytes script = this.getStateScript();
+      return Utils.buildOutput(script, amount);
+    }
+}
